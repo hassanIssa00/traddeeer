@@ -1,0 +1,1246 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>بوت التداول الآلي المتكامل · MetaTrader 5</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel2: #f8fafc;
+      --line: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --green: #16a34a;
+      --red: #dc2626;
+      --amber: #d97706;
+      --blue: #2563eb;
+      --purple: #8b5cf6;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body {
+      direction: rtl;
+      margin: 0;
+      background: radial-gradient(900px 420px at 82% -15%, #e5effb 0, transparent 65%), var(--bg);
+      color: var(--text);
+      font: 14px/1.6 "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+    .shell { max-width: 1480px; margin: auto; padding: 18px clamp(12px, 2.5vw, 30px); }
+    
+    /* Top Header */
+    .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+    .brand { display: flex; gap: 13px; align-items: center; }
+    .mark {
+      width: 48px; height: 48px; border: 1px solid #d5e4f4; border-radius: 14px;
+      display: grid; place-items: center; background: #eaf2fb; color: #286bbd;
+      font-weight: 900; font-size: 22px;
+    }
+    .eyebrow { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+    .top h1 { font-size: 21px; margin: 2px 0 0; color: var(--text); }
+    .sub { color: var(--muted); font-size: 12px; }
+    
+    .badge, .pill {
+      border: 1px solid var(--line); background: var(--panel2); border-radius: 99px;
+      padding: 6px 12px; color: var(--text); font-size: 12px; white-space: nowrap; font-weight: 600;
+    }
+    .badge.good { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+    .badge.warn { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+    .badge.bad  { color: #b91c1c; border-color: #fecdd3; background: #fff1f2; }
+    .badge.blue { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+    
+    /* Nav Tabs */
+    .main-nav {
+      display: flex; gap: 8px; margin: 14px 0 16px 0; border-bottom: 2px solid var(--line);
+      padding-bottom: 10px; flex-wrap: wrap;
+    }
+    .nav-btn {
+      padding: 9px 18px; font-weight: 700; font-size: 13px; border-radius: 9px;
+      border: 1px solid var(--line); background: var(--panel); color: var(--text);
+      cursor: pointer; display: flex; align-items: center; gap: 7px; transition: all .15s;
+    }
+    .nav-btn:hover { background: var(--panel2); }
+    .nav-btn.active {
+      background: var(--blue); border-color: var(--blue); color: #ffffff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+    }
+    
+    /* Panels */
+    .panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: var(--shadow); padding: 18px; margin-bottom: 14px;
+    }
+    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+    .head h2 { font-size: 16px; margin: 0; color: var(--text); }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    
+    /* Metrics */
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .metric {
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+    }
+    .metric label { color: var(--muted); font-size: 11px; display: block; margin-bottom: 4px; font-weight: 600; }
+    .metric strong { display: block; font-size: 20px; font-weight: 700; direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+    .metric small { color: var(--muted); font-size: 11px; display: block; margin-top: 3px; }
+    
+    /* Progress */
+    .progress {
+      height: 11px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin-top: 8px;
+    }
+    .progress i {
+      display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--green));
+      border-radius: 99px; transition: width .5s ease;
+    }
+    
+    /* Chart Panel */
+    .chart-panel { border-top: 3px solid var(--blue); }
+    .chart-wrap {
+      border: 1px solid var(--line); border-radius: 12px; background: #fbfdff;
+      overflow: hidden; height: 420px; position: relative;
+    }
+    .chart-wrap canvas { display: block; width: 100%; height: 100%; direction: ltr; }
+    .chart-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+    .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .chart-swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+    .chart-caption { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+    
+    /* Controls & Buttons */
+    .field label { display: block; font-size: 11px; color: #475569; margin: 0 0 5px; font-weight: 600; }
+    .field input, .field select {
+      height: 38px; width: 100%; border: 1px solid #cbd5e1; border-radius: 8px;
+      background: #ffffff; color: var(--text); padding: 0 10px; font-size: 12px;
+      outline: none; font-family: inherit;
+    }
+    .field input:focus, .field select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    
+    .btn {
+      height: 38px; border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff;
+      color: var(--text); font-weight: 700; padding: 0 14px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      transition: all .15s; font-family: inherit; font-size: 12px;
+    }
+    .btn:hover { background: var(--panel2); }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: #ffffff; }
+    .btn.primary:hover { background: #1d4ed8; }
+    .btn.success { background: #16a34a; border-color: #15803d; color: #ffffff; }
+    .btn.success:hover { background: #15803d; }
+    .btn.stop { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .btn.stop:hover { background: #fecaca; }
+    
+    /* Table */
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: #ffffff; }
+    .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table th, .table td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .table th { color: var(--muted); background: var(--panel2); font-weight: 600; }
+    .empty { text-align: center !important; color: var(--muted); padding: 22px !important; }
+
+    /* Bot Log Box */
+    .log-terminal {
+      background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 14px;
+      font-family: Consolas, monospace; font-size: 12px; height: 320px; overflow-y: auto;
+      border: 1px solid #334155; line-height: 1.8; direction: ltr; text-align: left;
+    }
+    .log-item { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 6px; }
+    .log-time { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+    .log-tag { border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .log-tag.SUCCESS { background: #14532d; color: #86efac; }
+    .log-tag.INFO    { background: #1e3a8a; color: #93c5fd; }
+    .log-tag.TRADE   { background: #701a75; color: #f5d0fe; }
+    .log-tag.WARN    { background: #713f12; color: #fde047; }
+    .log-tag.ERROR   { background: #7f1d1d; color: #fca5a5; }
+    .log-text { color: #f1f5f9; word-break: break-all; }
+
+    @media (max-width: 900px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <!-- Top Bar -->
+  <header class="top">
+    <div class="brand">
+      <div class="mark">🤖</div>
+      <div>
+        <div class="eyebrow">منصة MetaTrader 5 · الذكاء الاصطناعي والتداول الآلي</div>
+        <h1>بوت التداول الآلي المتكامل · التحليل الفني والأهداف</h1>
+        <div class="sub">19 مؤشر فني · 4 استراتيجيات حية · تنفيذ الصفقات التلقائي وإدارة رأس المال</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span id="botHeaderStatusBadge" class="badge good">🟢 البوت الآلي: نشط ويعمل</span>
+      <button type="button" id="btnHeaderBotToggle" class="btn stop" onclick="toggleBotExecution()" style="height:32px; font-size:11px;">⏸️ إيقاف البوت</button>
+      <span id="navConnBadge" class="badge good">● متصل بالحساب</span>
+      <span id="navAccInfo" class="pill" style="direction:ltr;">MT5</span>
+    </div>
+  </header>
+
+  <!-- Main Navigation Tabs -->
+  <nav class="main-nav">
+    <button type="button" class="nav-btn active" id="btn-tab-trader" onclick="switchTab('trader')">
+      <span>📊</span> الشارت والتحليل الفني (19 مؤشر وTrader-Skill)
+    </button>
+    <button type="button" class="nav-btn" id="btn-tab-bot" onclick="switchTab('bot')">
+      <span>🤖</span> لوحة تحكم البوت الآلي والتداول التلقائي
+    </button>
+    <button type="button" class="nav-btn" id="btn-tab-goals" onclick="switchTab('goals')">
+      <span>🎯</span> نظام الأهداف والصفقات المفتوحة
+    </button>
+  </nav>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 1: TECHNICAL ANALYSIS & 19 INDICATORS                                  -->
+  <!-- ========================================================================= -->
+  <div id="tab-trader">
+    <!-- Market Selector Bar -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 18px; box-shadow:var(--shadow);">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:24px;">📈</span>
+        <div>
+          <h2 style="margin:0; font-size:16px;">المؤشرات الفنية اللحظية</h2>
+          <div class="hint" style="margin:0;">تحليل آلي يجمع 19 مؤشر فني و4 استراتيجيات مباشرة من منصة ميتاتريدر 5.</div>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <label style="font-size:12px; color:var(--muted); font-weight:700;">الرمز:</label>
+        <select id="marketSymbol" onchange="loadAnalysis()" style="height:36px; border:1px solid var(--line); border-radius:8px; padding:0 12px; font-size:13px; font-weight:700; background:var(--panel2); color:var(--text);">
+          <option value="XAUUSDm">🥇 الذهب (XAUUSDm)</option>
+          <option value="BTCUSDm">₿ البيتكوين (BTCUSDm)</option>
+          <option value="ETHUSDm">Ξ الإيثيريوم (ETHUSDm)</option>
+        </select>
+        <label style="font-size:12px; color:var(--muted); font-weight:700; margin-right:6px;">الفريم:</label>
+        <select id="marketTimeframe" onchange="loadAnalysis()" style="height:36px; border:1px solid var(--line); border-radius:8px; padding:0 12px; font-size:13px; font-weight:700; background:var(--panel2); color:var(--text);">
+          <option value="H1">ساعة (H1)</option>
+          <option value="M15">15 دقيقة (M15)</option>
+          <option value="H4">4 ساعات (H4)</option>
+        </select>
+        <button type="button" class="btn primary" onclick="loadAnalysis()">🔄 تحديث فوري</button>
+      </div>
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div class="metrics" style="margin-bottom:14px;">
+      <div class="metric" style="border-right: 4px solid var(--blue);">
+        <label>الإشارة الإجمالية المركبة</label>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong id="kpiAction" style="font-size:20px;">—</strong>
+          <span id="kpiScore" class="pill" style="direction:ltr;">Score: —</span>
+        </div>
+        <small id="kpiSignalCount">شراء: 0 | بيع: 0 | محايد: 0</small>
+      </div>
+
+      <div class="metric" style="border-right: 4px solid var(--green);">
+        <label>نسبة الثقة وتوافق الإشارات</label>
+        <strong id="kpiConfidence" style="font-size:20px;">—%</strong>
+        <small id="kpiConsensus">قوة التوافق بين المؤشرات</small>
+      </div>
+
+      <div class="metric" style="border-right: 4px solid var(--amber);">
+        <label>قوة الاتجاه (ADX & Trend)</label>
+        <strong id="kpiAdxStrength" style="font-size:18px;">—</strong>
+        <small id="kpiAdxDetail">ADX: — | +DI: — | -DI: —</small>
+      </div>
+
+      <div class="metric" style="border-right: 4px solid var(--purple);">
+        <label>الزخم والتذبذب (RSI & Bollinger)</label>
+        <strong id="kpiRsiStatus" style="font-size:18px;">—</strong>
+        <small id="kpiRsiDetail">RSI(14): — | BB %B: —</small>
+      </div>
+    </div>
+
+    <!-- Chart Panel -->
+    <section class="panel chart-panel">
+      <div class="head">
+        <div>
+          <h2>الشارت الفني المباشر والمتوسطات</h2>
+          <div class="hint">شموع حية مع مؤشرات: EMA 20/50/200 ونطاقات بولينجر، ومؤشر RSI المساعد.</div>
+        </div>
+        <div class="chart-legend">
+          <span><i class="chart-swatch" style="background:#16a34a;"></i>شمعة صاعدة</span>
+          <span><i class="chart-swatch" style="background:#dc2626;"></i>شمعة هابطة</span>
+          <span style="color:#d97706;"><i class="chart-swatch" style="background:#f0c040;"></i>EMA 20</span>
+          <span style="color:#2563eb;"><i class="chart-swatch" style="background:#2563eb;"></i>EMA 50</span>
+          <span style="color:#8b5cf6;"><i class="chart-swatch" style="background:#8b5cf6;"></i>EMA 200</span>
+          <span style="color:#94a3b8;"><i class="chart-swatch" style="background:#cbd5e1;"></i>Bollinger Bands</span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="techChart"></canvas>
+      </div>
+      <div class="chart-caption">
+        <span id="chartHoverText">مرّر بمؤشر الفأرة فوق الشموع لعرض الأسعار والمؤشرات</span>
+        <strong id="chartCurrentPrice" style="font-size:16px; color:var(--blue); direction:ltr;">—</strong>
+      </div>
+    </section>
+
+    <!-- Strategies & S/R Grid -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:14px;">
+      
+      <!-- 4 Strategies (FULL DATA FOR ALL) -->
+      <section class="panel" style="margin:0;">
+        <div class="head">
+          <div>
+            <h2>مقارنة الاستراتيجيات الأربعة الحية</h2>
+            <div class="hint">قراءات ونسب ثقة حية لكل استراتيجية مع تبيان شروط الدخول.</div>
+          </div>
+          <span class="pill" id="bestStrategyTag">الاستراتيجية الفائزة: —</span>
+        </div>
+        <div id="strategyCards" style="display:grid; gap:9px;">
+          <div class="empty">جارٍ فحص استراتيجيات التداول...</div>
+        </div>
+      </section>
+
+      <!-- S/R and Candlestick Patterns -->
+      <section class="panel" style="margin:0;">
+        <div class="head">
+          <div>
+            <h2>مستويات الدعم والمقاومة وأنماط الشموع</h2>
+            <div class="hint">مستويات الارتكاز والبيفوت اللحظية مع نماذج الشموع اليابانية المكتشفة.</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div style="background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px;">
+            <small style="color:var(--muted); display:block; margin-bottom:4px;">أقرب مقاومة (Resistance)</small>
+            <b id="srRes" style="font-size:16px; color:var(--red); direction:ltr; display:block; text-align:right;">—</b>
+            <small id="srResDist" style="color:var(--muted);">يبعد: —%</small>
+          </div>
+          <div style="background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px;">
+            <small style="color:var(--muted); display:block; margin-bottom:4px;">أقرب دعم (Support)</small>
+            <b id="srSup" style="font-size:16px; color:var(--green); direction:ltr; display:block; text-align:right;">—</b>
+            <small id="srSupDist" style="color:var(--muted);">يبعد: —%</small>
+          </div>
+        </div>
+
+        <div style="background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px;">
+          <small style="color:var(--muted); display:block; margin-bottom:6px; font-weight:700;">أنماط الشموع المكتشفة:</small>
+          <div id="patternsContainer" style="display:flex; flex-wrap:wrap; gap:6px;">
+            <span class="pill">لا توجد أنماط نشطة</span>
+          </div>
+        </div>
+
+        <div style="background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px;">
+          <small style="color:var(--muted); display:block; margin-bottom:6px; font-weight:700;">نقاط البيفوت اليومية (Pivot Points):</small>
+          <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; text-align:center; font-size:11px;">
+            <div><span style="color:var(--red); display:block;">R2</span><b id="pvR2" style="direction:ltr;">—</b></div>
+            <div><span style="color:var(--red); display:block;">R1</span><b id="pvR1" style="direction:ltr;">—</b></div>
+            <div><span style="color:var(--blue); display:block;">P</span><b id="pvP" style="direction:ltr;">—</b></div>
+            <div><span style="color:var(--green); display:block;">S1</span><b id="pvS1" style="direction:ltr;">—</b></div>
+            <div><span style="color:var(--green); display:block;">S2</span><b id="pvS2" style="direction:ltr;">—</b></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- All 19 Indicators Table -->
+    <section class="panel wide">
+      <div class="head">
+        <div>
+          <h2>جدول الـ 19 مؤشر فني بالكامل (Trader-Skill)</h2>
+          <div class="hint">جميع المؤشرات الفنية الـ 19 مع قراءاتها اللحظية، وتصنيف الإشارة وتفسير حركة السعر.</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>المؤشر الفني</th>
+              <th>الفئة والوظيفة</th>
+              <th>القيمة اللحظية الحالية</th>
+              <th>الإشارة الفنية</th>
+              <th>التفسير وسياق الحركة</th>
+            </tr>
+          </thead>
+          <tbody id="indicatorsTableBody">
+            <tr><td colspan="5" class="empty">جارٍ تحميل بيانات المؤشرات...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 2: AUTO-TRADING BOT CONTROLLER                                         -->
+  <!-- ========================================================================= -->
+  <div id="tab-bot" style="display:none;">
+    <!-- Bot Control Banner -->
+    <section class="panel wide" style="border-top: 3px solid var(--green);">
+      <div class="head">
+        <div>
+          <h2>🤖 لوحة تحكم البوت الآلي والتداول التلقائي</h2>
+          <div class="hint">يعمل البوت بالخلفية بشكل مستمر، يفحص استراتيجيات التداول، وينفذ الصفقات آلياً على حساب MT5 بدون تدخل بشري.</div>
+        </div>
+        <span id="botActiveBadge" class="badge good" style="font-size:13px; font-weight:700;">🟢 البوت الآلي: نشط ويعمل تلقائياً</span>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:14px 0; background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px;">
+        <button type="button" class="btn success" onclick="startAutoBot()" style="height:44px; padding:0 22px; font-size:14px;">
+          ▶️ تشغيل التداول الآلي (Auto-Trading ON)
+        </button>
+        <button type="button" class="btn stop" onclick="stopAutoBot()" style="height:44px; padding:0 20px; font-size:14px;">
+          ⏸️ إيقاف مؤقت للبوت (Stop Auto-Trading)
+        </button>
+        <div style="margin-right:auto; font-size:12px; color:var(--muted);">
+          <span>آخر فحص: </span><b id="botLastScanTime" style="color:var(--text); direction:ltr;">—</b>
+          <span style="margin-right:12px;">إجمالي الصفقات: </span><b id="botTotalTradesCount" style="color:var(--blue);">0</b>
+        </div>
+      </div>
+
+      <!-- Bot Parameters & Settings Grid -->
+      <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; margin-top:14px;">
+        <div class="field">
+          <label>حجم العقد (Lot Size):</label>
+          <input id="botCfgLot" type="number" step="0.01" min="0.01" max="1.0" value="0.01" style="direction:ltr;">
+        </div>
+        <div class="field">
+          <label>الحد الأدنى للثقة (% Min Conf):</label>
+          <input id="botCfgMinConf" type="number" step="5" min="40" max="95" value="60" style="direction:ltr;">
+        </div>
+        <div class="field">
+          <label>أقصى صفقات مفتوحة معاً:</label>
+          <input id="botCfgMaxPos" type="number" step="1" min="1" max="5" value="2" style="direction:ltr;">
+        </div>
+        <div class="field">
+          <label>فاصل الفحص (بالثواني):</label>
+          <input id="botCfgInterval" type="number" step="5" min="5" max="120" value="15" style="direction:ltr;">
+        </div>
+        <div style="display:flex; align-items:end;">
+          <button type="button" class="btn primary" onclick="saveBotConfig()" style="height:38px; width:100%;">💾 حفظ الإعدادات</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bot Decision Stream & Execution Log -->
+    <section class="panel wide" style="border-top: 3px solid var(--purple);">
+      <div class="head">
+        <div>
+          <h2>⚡ سجل قرارات وعمليات البوت اللحظي (Live Activity Stream)</h2>
+          <div class="hint">تدفق حي ومباشر يوضح كل خطوة وفحص وتنفيذ يقوم به البوت الآلي على مدار الساعة.</div>
+        </div>
+        <button type="button" class="btn" onclick="loadBotStatus()" style="font-size:11px; height:28px;">🔄 تحديث السجل</button>
+      </div>
+
+      <div class="log-terminal" id="botTerminalLogs">
+        <div class="log-item">
+          <span class="log-time">[00:00:00]</span>
+          <span class="log-tag INFO">INFO</span>
+          <span class="log-text">جارٍ تحميل سجل نشاط البوت...</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 3: GOAL SYSTEM & POSITIONS                                             -->
+  <!-- ========================================================================= -->
+  <div id="tab-goals" style="display:none;">
+    <!-- Goal Metrics & Progress Bar -->
+    <section class="panel wide" style="border-top: 3px solid var(--green);">
+      <div class="head">
+        <div>
+          <h2>🎯 نظام تتبع الهدف المالي وإدارة المخاطر</h2>
+          <div class="hint">مراقبة الهدف الربحي المحدد مع الأمان التلقائي وإيقاف الخسارة.</div>
+        </div>
+        <span id="goalBadge" class="badge good" style="font-size:13px;">الحالة: نشط ومراقب</span>
+      </div>
+
+      <div class="metrics" style="grid-template-columns: repeat(5, 1fr); margin: 12px 0;">
+        <div class="metric">
+          <label>رصيد الحساب (Balance)</label>
+          <strong id="gBalance">$—</strong>
+          <small id="gStartBalance">بداية: $—</small>
+        </div>
+        <div class="metric">
+          <label>السيولة الحرة (Equity)</label>
+          <strong id="gEquity">$—</strong>
+          <small id="gFreeMargin">متاح: $—</small>
+        </div>
+        <div class="metric" style="border-right: 4px solid var(--green);">
+          <label>الربح المحقق (Total P/L)</label>
+          <strong id="gTotalProfit">$0.00</strong>
+          <small id="gTotalProfitPct">0.0%</small>
+        </div>
+        <div class="metric" style="border-right: 4px solid var(--blue);">
+          <label>الهدف المحدد (Target)</label>
+          <strong id="gTarget">$20.00</strong>
+          <small id="gRemaining">المتبقي: $20.00</small>
+        </div>
+        <div class="metric" style="border-right: 4px solid var(--red);">
+          <label>أقصى خسارة (Max Loss)</label>
+          <strong id="gMaxLoss" style="color:var(--red);">$10.00</strong>
+          <small>وقف أمان فوري</small>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div style="margin: 14px 0 8px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px; font-weight:700;">
+          <span>نسبة إنجاز الهدف المالي:</span>
+          <span id="gProgressPct" style="color:var(--blue);">0%</span>
+        </div>
+        <div class="progress">
+          <i id="gProgressBar"></i>
+        </div>
+      </div>
+
+      <!-- Settings Row -->
+      <div style="display:flex; gap:12px; align-items:end; margin-top:14px; background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:12px; flex-wrap:wrap;">
+        <div class="field" style="flex:1; min-width:140px;">
+          <label>هدف الربح بالدولار ($):</label>
+          <input id="inTargetProfit" type="number" step="1" value="20" style="direction:ltr;">
+        </div>
+        <div class="field" style="flex:1; min-width:140px;">
+          <label>أقصى خسارة إجمالية ($):</label>
+          <input id="inMaxLoss" type="number" step="1" value="10" style="direction:ltr;">
+        </div>
+        <div class="field" style="flex:1; min-width:140px;">
+          <label>الهدف اليومي ($):</label>
+          <input id="inDailyTarget" type="number" step="1" value="5" style="direction:ltr;">
+        </div>
+        <button type="button" class="btn primary" onclick="updateGoals()" style="height:38px;">💾 حفظ وتثبيت الهدف</button>
+      </div>
+    </section>
+
+    <!-- Open Positions Table (Full Width) -->
+    <section class="panel wide" style="margin-bottom:14px;">
+      <div class="head">
+        <div>
+          <h2>📊 الصفقات المفتوحة حالياً في الحساب (إدارة البوت الآلي)</h2>
+          <div class="hint">متابعة الصفقات التي فتحها البوت تلقائياً ومستويات الأرباح اللحظية والوقف المتحرك (Trailing Stop).</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="pill" id="openPosCount">0 صفقات</span>
+          <button type="button" class="btn stop" onclick="closeAllPositions()" style="padding:5px 14px; font-size:12px;">إغلاق كل الصفقات ✕</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>التذكرة</th>
+              <th>الرمز</th>
+              <th>النوع</th>
+              <th>اللوت</th>
+              <th>سعر الفتح</th>
+              <th>السعر الحالي</th>
+              <th>وقف الخسارة (SL)</th>
+              <th>جني الأرباح (TP)</th>
+              <th>الربح / الخسارة</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="openPositionsBody">
+            <tr><td colspan="10" class="empty">لا توجد صفقات مفتوحة حالياً.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Closed Trades History -->
+    <section class="panel wide">
+      <div class="head">
+        <div>
+          <h2>سجل الصفقات المنفذة (آخر 7 أيام)</h2>
+          <div class="hint">الصفقات المغلقة المحققة في حساب ميتاتريدر 5.</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>وقت التنفيذ</th>
+              <th>رقم التذكرة</th>
+              <th>الرمز</th>
+              <th>النوع</th>
+              <th>الحجم</th>
+              <th>سعر الإغلاق</th>
+              <th>الربح المحقق</th>
+            </tr>
+          </thead>
+          <tbody id="closedTradesBody">
+            <tr><td colspan="7" class="empty">لا توجد صفقات سابقة في السجل.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+</main>
+
+<script>
+  // ==========================================
+  // DASHBOARD CLIENT-SIDE ENGINE
+  // ==========================================
+
+  let currentAnalysis = null;
+  let botRunning = true;
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+    });
+    const d = await res.json();
+    if (!res.ok || d.success === false) {
+      throw new Error(d.error || `HTTP ${res.status}`);
+    }
+    return d;
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`btn-tab-${tabId}`);
+    if (btn) btn.classList.add('active');
+
+    document.getElementById('tab-trader').style.display = tabId === 'trader' ? 'block' : 'none';
+    document.getElementById('tab-bot').style.display    = tabId === 'bot' ? 'block' : 'none';
+    document.getElementById('tab-goals').style.display  = tabId === 'goals' ? 'block' : 'none';
+
+    if (tabId === 'trader') loadAnalysis();
+    if (tabId === 'bot') loadBotStatus();
+    if (tabId === 'goals') loadGoals();
+  }
+
+  // --- TAB 1: TECHNICAL ANALYSIS & 19 INDICATORS ---
+
+  async function loadAnalysis() {
+    const sym = document.getElementById('marketSymbol').value;
+    const tf = document.getElementById('marketTimeframe').value;
+    try {
+      const data = await api(`/api/analysis?symbol=${sym}&timeframe=${tf}`);
+      currentAnalysis = data;
+      renderAnalysisUI(data);
+    } catch (e) {
+      console.error('Failed to load analysis:', e);
+    }
+  }
+
+  function renderAnalysisUI(data) {
+    const score = Math.round(data.overall_score || 0);
+    const action = data.action || 'WAIT';
+    const conf = Math.round(data.confidence || 0);
+
+    // KPI 1: Action & Score
+    const actEl = document.getElementById('kpiAction');
+    actEl.textContent = action === 'BUY' ? 'شراء (BUY)' : action === 'SELL' ? 'بيع (SELL)' : 'انتظار (WAIT)';
+    actEl.style.color = action === 'BUY' ? 'var(--green)' : action === 'SELL' ? 'var(--red)' : 'var(--muted)';
+
+    const scoreEl = document.getElementById('kpiScore');
+    scoreEl.textContent = `Score: ${score > 0 ? '+' : ''}${score}`;
+    scoreEl.style.background = score > 20 ? '#f0fdf4' : score < -20 ? '#fff1f2' : 'var(--panel2)';
+    scoreEl.style.color = score > 20 ? 'var(--green)' : score < -20 ? 'var(--red)' : 'var(--text)';
+
+    document.getElementById('kpiSignalCount').textContent = `شراء: ${data.buy_signals} | بيع: ${data.sell_signals} | محايد: ${data.neutral_signals}`;
+
+    // KPI 2: Confidence
+    document.getElementById('kpiConfidence').textContent = `${conf}%`;
+    document.getElementById('kpiConsensus').textContent = conf >= 65 ? 'توافق قوي بين المؤشرات' : 'إشارات متوازنة / حذرة';
+
+    // KPI 3: ADX & Trend
+    const ind = data.indicators || {};
+    const adx = ind.adx || {};
+    document.getElementById('kpiAdxStrength').textContent = adx.strength ? `${adx.strength} (ADX ${Math.round(adx.adx || 0)})` : 'غير محدد';
+    document.getElementById('kpiAdxDetail').textContent = `+DI: ${Math.round(adx['+di'] || 0)} | -DI: ${Math.round(adx['-di'] || 0)}`;
+
+    // KPI 4: RSI & Bollinger
+    const rsi = ind.rsi || {};
+    const bb = ind.bollinger || {};
+    const rsiVal = Math.round(rsi.value || 50);
+    document.getElementById('kpiRsiStatus').textContent = rsiVal > 70 ? `تشبع شرائي (${rsiVal})` : rsiVal < 30 ? `تشبع بيعي (${rsiVal})` : `منطقة متوازنة (${rsiVal})`;
+    document.getElementById('kpiRsiDetail').textContent = `RSI: ${rsiVal} | Bollinger %B: ${(bb.pct_b || 0.5).toFixed(2)}`;
+
+    // S/R Levels
+    const sr = ind.sr || {};
+    document.getElementById('srRes').textContent = sr.nearest_resistance ? sr.nearest_resistance.toFixed(data.digits || 2) : '—';
+    document.getElementById('srSup').textContent = sr.nearest_support ? sr.nearest_support.toFixed(data.digits || 2) : '—';
+    document.getElementById('srResDist').textContent = `يبعد: ${(sr.dist_to_res_pct || 0).toFixed(2)}%`;
+    document.getElementById('srSupDist').textContent = `يبعد: ${(sr.dist_to_sup_pct || 0).toFixed(2)}%`;
+
+    if (sr.pivot) {
+      document.getElementById('pvP').textContent = sr.pivot.toFixed(2);
+      document.getElementById('pvR1').textContent = sr.r1.toFixed(2);
+      document.getElementById('pvR2').textContent = sr.r2.toFixed(2);
+      document.getElementById('pvS1').textContent = sr.s1.toFixed(2);
+      document.getElementById('pvS2').textContent = sr.s2.toFixed(2);
+    }
+
+    // Patterns
+    const pat = ind.patterns || {};
+    const patObj = pat.patterns || {};
+    const patEl = document.getElementById('patternsContainer');
+    const patKeys = Object.keys(patObj);
+    if (!patKeys.length) {
+      patEl.innerHTML = '<span class="pill">لا توجد نماذج نشطة حالياً</span>';
+    } else {
+      patEl.innerHTML = patKeys.map(k => {
+        const isBull = patObj[k] > 0;
+        return `<span class="badge ${isBull ? 'good' : 'warn'}">${k} (${isBull ? 'صعودي' : 'هبوطي'})</span>`;
+      }).join('');
+    }
+
+    // Strategies (FULL DATA)
+    renderStrategies(data);
+
+    // 19 Indicators Table
+    renderIndicatorsTable(ind);
+
+    // Draw Canvas Chart
+    drawTechChart(data);
+  }
+
+  function renderStrategies(data) {
+    const strat = data.strategy || {};
+    const stratsMap = strat.strategies || {};
+    document.getElementById('bestStrategyTag').textContent = `الاستراتيجية الفائزة: ${strat.strategy || 'انتظار'} (${Math.round(strat.confidence || 0)}%)`;
+
+    const strategiesDef = [
+      { name: 'TrendFollowing', title: 'متابعة الاتجاه (EMA + ADX + MACD)', desc: 'تداول مع اتجاه التريند وتأكيد السيولة' },
+      { name: 'MeanReversion', title: 'الارتداد للمتوسط (Bollinger + RSI + Stoch)', desc: 'شراء التشبع البيعي وبيع التشبع الشرائي' },
+      { name: 'Breakout', title: 'الاختراق القوي (Donchian + Volume)', desc: 'اقتناص الانفجارات السعرية مع تدفق الحجم' },
+      { name: 'MACDDivergence', title: 'تباعد الماكد والشموع (Divergence)', desc: 'اكتشاف انعكاسات القمم والقيعان بالدايفرجنس' },
+    ];
+
+    const cardsEl = document.getElementById('strategyCards');
+    cardsEl.innerHTML = strategiesDef.map(s => {
+      const sData = stratsMap[s.name] || (strat.strategy === s.name ? strat : {});
+      const act = sData.action || 'WAIT';
+      const conf = Math.round(sData.confidence !== undefined ? sData.confidence : 0);
+      const isWinner = (strat.strategy === s.name && act !== 'WAIT');
+      const color = act === 'BUY' ? 'var(--green)' : act === 'SELL' ? 'var(--red)' : 'var(--amber)';
+      const reason = sData.reason || s.desc;
+
+      return `
+        <div style="background:var(--panel2); border:1.5px solid ${isWinner ? 'var(--blue)' : 'var(--line)'}; border-radius:11px; padding:11px 14px; display:flex; justify-content:space-between; align-items:center; box-shadow:${isWinner ? '0 2px 10px rgba(37,99,235,0.1)' : 'none'};">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <b style="font-size:13px; color:var(--text);">${s.title}</b>
+              ${isWinner ? '<span class="badge blue" style="padding:2px 8px; font-size:10px;">⭐ الفائزة</span>' : ''}
+            </div>
+            <small style="display:block; color:var(--muted); margin-top:2px;">${reason}</small>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="pill" style="direction:ltr; font-weight:700;">${conf}%</span>
+            <span class="badge" style="color:${color}; font-weight:700;">${act}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderIndicatorsTable(ind) {
+    const rows = [
+      { name: 'EMA 20/50/200', cat: 'الاتجاه (Trend)', d: ind.ema || {} },
+      { name: 'Ichimoku Cloud', cat: 'الاتجاه (Trend)', d: ind.ichimoku || {} },
+      { name: 'RSI (14)', cat: 'الزخم (Momentum)', d: ind.rsi || {} },
+      { name: 'MACD (12,26,9)', cat: 'الزخم (Momentum)', d: ind.macd || {} },
+      { name: 'Stochastic (14,3)', cat: 'الزخم (Momentum)', d: ind.stochastic || {} },
+      { name: 'CCI (20)', cat: 'الزخم (Momentum)', d: ind.cci || {} },
+      { name: 'Williams %R', cat: 'الزخم (Momentum)', d: ind.williams || {} },
+      { name: 'MFI (14) Money Flow', cat: 'السيولة والزخم', d: ind.mfi || {} },
+      { name: 'ROC (10) Rate of Change', cat: 'السرعة والزخم', d: ind.roc || {} },
+      { name: 'Bollinger Bands (20,2)', cat: 'التذبذب (Volatility)', d: ind.bollinger || {} },
+      { name: 'ATR (14) Real Range', cat: 'التذبذب (Volatility)', d: ind.atr || {} },
+      { name: 'Keltner Channels', cat: 'التذبذب (Volatility)', d: ind.keltner || {} },
+      { name: 'Donchian Channels (20)', cat: 'القنوات والاختراق', d: ind.donchian || {} },
+      { name: 'ADX (14) Trend Strength', cat: 'قوة الحركة (Strength)', d: ind.adx || {} },
+      { name: 'Aroon (25) Oscillator', cat: 'قوة الحركة (Strength)', d: ind.aroon || {} },
+      { name: 'OBV On-Balance Volume', cat: 'الحجم والسيولة', d: ind.obv || {} },
+      { name: 'Volume SMA Ratio', cat: 'الحجم والسيولة', d: ind.volume || {} },
+      { name: 'Candlestick Patterns', cat: 'النماذج الفنية', d: ind.patterns || {} },
+      { name: 'Support / Resistance', cat: 'المستويات السعرية', d: ind.sr || {} },
+    ];
+
+    const tbody = document.getElementById('indicatorsTableBody');
+    tbody.innerHTML = rows.map(r => {
+      const d = r.d || {};
+      const sig = d.signal || 'NEUTRAL';
+      const sigColor = sig === 'BUY' ? 'var(--green)' : sig === 'SELL' ? 'var(--red)' : 'var(--muted)';
+      const valText = d.detail || (d.value !== undefined ? d.value : '—');
+      return `
+        <tr>
+          <td><b>${r.name}</b></td>
+          <td><span class="pill">${r.cat}</span></td>
+          <td style="font-family:Consolas, monospace; direction:ltr; text-align:right;">${typeof valText === 'number' ? valText.toFixed(3) : valText}</td>
+          <td><span class="badge" style="color:${sigColor}; font-weight:700;">${sig}</span></td>
+          <td style="color:var(--muted); font-size:11px;">${d.explanation || d.detail || 'قراءة فنية لحظية'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function drawTechChart(data) {
+    const canvas = document.getElementById('techChart');
+    if (!canvas) return;
+    const bars = data.candles || [];
+    if (!bars.length) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = rect.width, h = rect.height;
+    ctx.fillStyle = '#fbfdff';
+    ctx.fillRect(0, 0, w, h);
+
+    const rsiPaneH = 65;
+    const mainPaneH = h - rsiPaneH - 35;
+
+    // Price range
+    const min = Math.min(...bars.map(b => b.low));
+    const max = Math.max(...bars.map(b => b.high));
+    const pad = (max - min) * 0.08 || 0.01;
+    const lo = min - pad, hi = max + pad;
+
+    const left = 55, right = 60, top = 12;
+    const plotW = w - left - right;
+
+    const xAt = i => left + (i + 0.5) * (plotW / bars.length);
+    const yAt = p => top + (hi - p) / (hi - lo) * mainPaneH;
+    const slot = plotW / bars.length;
+    const bodyW = Math.max(2, Math.min(10, slot * 0.6));
+
+    // Horizontal Grid Lines
+    for (let i = 0; i <= 5; i++) {
+      const p = hi - (hi - lo) * i / 5;
+      const y = yAt(p);
+      ctx.strokeStyle = '#e8edf3';
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(w - right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px Segoe UI';
+      ctx.textAlign = 'right';
+      ctx.fillText(p.toFixed(data.digits || 2), left - 6, y + 3);
+    }
+
+    // Bollinger Bands Fill
+    ctx.fillStyle = 'rgba(203, 213, 225, 0.15)';
+    ctx.beginPath();
+    let started = false;
+    bars.forEach((b, i) => {
+      if (b.bb_u !== null && b.bb_u !== undefined) {
+        const x = xAt(i), y = yAt(b.bb_u);
+        if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+      }
+    });
+    for (let i = bars.length - 1; i >= 0; i--) {
+      const b = bars[i];
+      if (b.bb_l !== null && b.bb_l !== undefined) {
+        ctx.lineTo(xAt(i), yAt(b.bb_l));
+      }
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw EMA Lines
+    function drawLine(key, color, width) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      let init = false;
+      bars.forEach((b, i) => {
+        const val = b[key];
+        if (val !== null && val !== undefined) {
+          const x = xAt(i), y = yAt(val);
+          if (!init) { ctx.moveTo(x, y); init = true; } else { ctx.lineTo(x, y); }
+        }
+      });
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    drawLine('ema20', '#f0c040', 1.5);
+    drawLine('ema50', '#2563eb', 1.5);
+    drawLine('ema200', '#8b5cf6', 1.8);
+
+    // Draw Candles
+    bars.forEach((b, i) => {
+      const x = xAt(i);
+      const isBull = b.close >= b.open;
+      const color = isBull ? '#16a34a' : '#dc2626';
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+
+      // Wick
+      ctx.beginPath();
+      ctx.moveTo(x, yAt(b.high));
+      ctx.lineTo(x, yAt(b.low));
+      ctx.stroke();
+
+      // Body
+      const oY = yAt(b.open);
+      const cY = yAt(b.close);
+      ctx.fillRect(x - bodyW / 2, Math.min(oY, cY), bodyW, Math.max(1.5, Math.abs(cY - oY)));
+    });
+
+    // Last Price Dashed Line
+    const lastBar = bars[bars.length - 1];
+    if (lastBar) {
+      const y = yAt(lastBar.close);
+      ctx.strokeStyle = '#2563eb';
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(w - right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#2563eb';
+      ctx.font = 'bold 10px Segoe UI';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${lastBar.close.toFixed(data.digits || 2)}`, w - right + 4, y + 3);
+
+      document.getElementById('chartCurrentPrice').textContent = `${data.symbol}: ${lastBar.close.toFixed(data.digits || 2)}`;
+    }
+
+    // --- Sub-Pane: RSI ---
+    const rsiTop = mainPaneH + 20;
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.moveTo(left, rsiTop);
+    ctx.lineTo(w - right, rsiTop);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText('RSI (14)', left + 4, rsiTop + 12);
+
+    // RSI 70 / 30 Levels
+    const rsiY = v => rsiTop + (100 - v) / 100 * (rsiPaneH - 10);
+    [70, 30].forEach(lvl => {
+      ctx.strokeStyle = lvl === 70 ? '#fca5a5' : '#86efac';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(left, rsiY(lvl));
+      ctx.lineTo(w - right, rsiY(lvl));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'right';
+      ctx.fillText(lvl, left - 4, rsiY(lvl) + 3);
+    });
+
+    // Draw RSI Line
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    let rsiInit = false;
+    bars.forEach((b, i) => {
+      if (b.rsi !== null && b.rsi !== undefined) {
+        const x = xAt(i), y = rsiY(b.rsi);
+        if (!rsiInit) { ctx.moveTo(x, y); rsiInit = true; } else { ctx.lineTo(x, y); }
+      }
+    });
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+
+  // --- TAB 2: AUTO-TRADING BOT CONTROLLER ---
+
+  async function loadBotStatus() {
+    try {
+      const res = await api('/api/bot/status');
+      const state = res.state || {};
+      const logs = res.logs || [];
+
+      botRunning = !!state.running;
+
+      // Update Header Badge
+      const headerBadge = document.getElementById('botHeaderStatusBadge');
+      const headerBtn = document.getElementById('btnHeaderBotToggle');
+      const tabBadge = document.getElementById('botActiveBadge');
+
+      if (botRunning) {
+        headerBadge.textContent = '🟢 البوت الآلي: نشط ويعمل';
+        headerBadge.className = 'badge good';
+        headerBtn.textContent = '⏸️ إيقاف البوت';
+        headerBtn.className = 'btn stop';
+        tabBadge.textContent = '🟢 البوت الآلي: نشط ويفحص الأسواق وينفذ الصفقات تلقائياً';
+        tabBadge.className = 'badge good';
+      } else {
+        headerBadge.textContent = '⏸️ البوت متوقف مؤقتاً';
+        headerBadge.className = 'badge warn';
+        headerBtn.textContent = '▶️ تشغيل البوت';
+        headerBtn.className = 'btn success';
+        tabBadge.textContent = '⏸️ البوت متوقف (وضع المراقبة اليدوية)';
+        tabBadge.className = 'badge warn';
+      }
+
+      document.getElementById('botLastScanTime').textContent = state.last_scan || 'جارٍ الفحص...';
+      document.getElementById('botTotalTradesCount').textContent = state.total_trades || 0;
+
+      // Form values
+      if (state.lot_size !== undefined) document.getElementById('botCfgLot').value = state.lot_size;
+      if (state.min_confidence !== undefined) document.getElementById('botCfgMinConf').value = state.min_confidence;
+      if (state.max_positions !== undefined) document.getElementById('botCfgMaxPos').value = state.max_positions;
+      if (state.scan_interval !== undefined) document.getElementById('botCfgInterval').value = state.scan_interval;
+
+      // Render Logs
+      const terminalEl = document.getElementById('botTerminalLogs');
+      if (!logs.length) {
+        terminalEl.innerHTML = '<div class="log-item"><span class="log-text">لا توجد عمليات مسجلة بعد.</span></div>';
+      } else {
+        terminalEl.innerHTML = logs.map(l => `
+          <div class="log-item">
+            <span class="log-time">[${l.time}]</span>
+            <span class="log-tag ${l.level}">${l.level}</span>
+            <span class="log-text">${l.text}</span>
+          </div>
+        `).join('');
+      }
+    } catch (e) {
+      console.error('Failed to load bot status:', e);
+    }
+  }
+
+  async function startAutoBot() {
+    try {
+      await api('/api/bot/start', {});
+      loadBotStatus();
+    } catch (e) {
+      alert(`خطأ في تشغيل البوت: ${e.message}`);
+    }
+  }
+
+  async function stopAutoBot() {
+    try {
+      await api('/api/bot/stop', {});
+      loadBotStatus();
+    } catch (e) {
+      alert(`خطأ في إيقاف البوت: ${e.message}`);
+    }
+  }
+
+  function toggleBotExecution() {
+    if (botRunning) {
+      stopAutoBot();
+    } else {
+      startAutoBot();
+    }
+  }
+
+  async function saveBotConfig() {
+    const lot = parseFloat(document.getElementById('botCfgLot').value) || 0.01;
+    const minConf = parseFloat(document.getElementById('botCfgMinConf').value) || 60;
+    const maxPos = parseInt(document.getElementById('botCfgMaxPos').value) || 2;
+    const interval = parseInt(document.getElementById('botCfgInterval').value) || 15;
+
+    try {
+      await api('/api/bot/config', {
+        lot_size: lot,
+        min_confidence: minConf,
+        max_positions: maxPos,
+        scan_interval: interval,
+      });
+      alert('تم حفظ إعدادات البوت الآلي بنجاح!');
+      loadBotStatus();
+    } catch (e) {
+      alert(`فشل حفظ الإعدادات: ${e.message}`);
+    }
+  }
+
+  async function testInstantTrade() {
+    const sym = document.getElementById('marketSymbol').value || 'XAUUSDm';
+    if (!confirm(`هل تريد إرسال صفقة شراء تجريبية حية (0.01 لوت) على ${sym} إلى منصة MetaTrader 5؟`)) return;
+    try {
+      const res = await api('/api/bot/test-trade', { symbol: sym, action: 'BUY' });
+      alert(res.message || 'تم إرسال الصفقة التجريبية بنجاح!');
+      loadBotStatus();
+      loadGoals();
+    } catch (e) {
+      alert(`فشل إرسال الصفقة: ${e.message}`);
+    }
+  }
+
+  // --- TAB 3: GOALS & POSITIONS ---
+
+  async function loadGoals() {
+    try {
+      const data = await api('/api/goal');
+      renderGoalUI(data);
+    } catch (e) {
+      console.error('Failed to load goal status:', e);
+    }
+  }
+
+  function renderGoalUI(data) {
+    const acc = data.account || {};
+    const goal = data.goal || {};
+
+    document.getElementById('gBalance').textContent = `$${(acc.balance || 0).toFixed(2)}`;
+    document.getElementById('gEquity').textContent = `$${(acc.equity || 0).toFixed(2)}`;
+    document.getElementById('gFreeMargin').textContent = `متاح: $${(acc.margin_free || 0).toFixed(2)}`;
+    document.getElementById('gStartBalance').textContent = `بداية: $${(goal.start_balance || 0).toFixed(2)}`;
+
+    const totProf = goal.total_profit || 0;
+    const totProfEl = document.getElementById('gTotalProfit');
+    totProfEl.textContent = `$${totProf >= 0 ? '+' : ''}${totProf.toFixed(2)}`;
+    totProfEl.style.color = totProf >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('gTotalProfitPct').textContent = `عائد: ${goal.total_profit_pct || 0}%`;
+
+    document.getElementById('gTarget').textContent = `$${(goal.target_profit_usd || 20).toFixed(2)}`;
+    document.getElementById('gRemaining').textContent = `المتبقي: $${(goal.remaining_usd || 0).toFixed(2)}`;
+    document.getElementById('gMaxLoss').textContent = `$${(goal.max_loss_usd || 10).toFixed(2)}`;
+
+    // Progress
+    const prog = Math.min(100, Math.max(0, goal.progress || 0));
+    document.getElementById('gProgressPct').textContent = `${prog.toFixed(1)}%`;
+    document.getElementById('gProgressBar').style.width = `${prog}%`;
+
+    // Status Badge
+    const badgeEl = document.getElementById('goalBadge');
+    if (goal.status === 'GOAL_ACHIEVED') {
+      badgeEl.textContent = '🎉 تم تحقيق الهدف بنجاح!';
+      badgeEl.className = 'badge good';
+    } else if (goal.status === 'STOP_LOSS') {
+      badgeEl.textContent = '🛑 تم تفعيل وقف الخسارة';
+      badgeEl.className = 'badge bad';
+    } else {
+      badgeEl.textContent = 'الحالة: نشط ومراقب';
+      badgeEl.className = 'badge good';
+    }
+
+    // Input fields
+    document.getElementById('inTargetProfit').value = goal.target_profit_usd || 20;
+    document.getElementById('inMaxLoss').value = goal.max_loss_usd || 10;
+    document.getElementById('inDailyTarget').value = goal.daily_target_usd || 5;
+
+    // Open positions
+    renderOpenPositions(data.open_positions || []);
+
+    // Closed trades
+    renderClosedTrades(data.closed_trades || []);
+
+    // Nav bar info
+    document.getElementById('navAccInfo').textContent = `#${acc.login || ''} | $${(acc.balance || 0).toFixed(2)}`;
+  }
+
+  function renderOpenPositions(positions) {
+    document.getElementById('openPosCount').textContent = `${positions.length} صفقات`;
+    const tbody = document.getElementById('openPositionsBody');
+    if (!positions.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty">لا توجد صفقات مفتوحة حالياً في MT5.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = positions.map(p => {
+      const isBuy = p.type === 'BUY';
+      const pl = p.profit || 0;
+      return `
+        <tr>
+          <td style="font-family:Consolas;">#${p.ticket}</td>
+          <td><b>${p.symbol}</b></td>
+          <td><span class="badge ${isBuy ? 'good' : 'bad'}">${p.type}</span></td>
+          <td style="direction:ltr;">${p.volume}</td>
+          <td style="direction:ltr; font-family:Consolas;">${p.open_price}</td>
+          <td style="direction:ltr; font-family:Consolas;">${p.current_price}</td>
+          <td style="direction:ltr; font-family:Consolas; color:var(--red);">${p.sl > 0 ? p.sl : '—'}</td>
+          <td style="direction:ltr; font-family:Consolas; color:var(--green);">${p.tp > 0 ? p.tp : '—'}</td>
+          <td style="font-weight:700; color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}; direction:ltr;">${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}</td>
+          <td><button type="button" class="btn stop" onclick="closePositionTicket(${p.ticket})" style="padding:3px 10px; font-size:11px;">إغلاق</button></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function renderClosedTrades(trades) {
+    const tbody = document.getElementById('closedTradesBody');
+    if (!trades.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">لا توجد صفقات سابقة في سجل الوسيط.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = trades.map(t => {
+      const pl = t.profit || 0;
+      return `
+        <tr>
+          <td>${t.time}</td>
+          <td style="font-family:Consolas;">#${t.ticket}</td>
+          <td><b>${t.symbol}</b></td>
+          <td><span class="badge ${t.type === 'BUY' ? 'good' : 'bad'}">${t.type}</span></td>
+          <td style="direction:ltr;">${t.volume}</td>
+          <td style="direction:ltr; font-family:Consolas;">${t.price}</td>
+          <td style="font-weight:700; color:${pl >= 0 ? 'var(--green)' : 'var(--red)'}; direction:ltr;">${pl >= 0 ? '+' : ''}$${pl.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+
+  async function closePositionTicket(ticket) {
+    if (!confirm(`هل أنت متأكد من إغلاق الصفقة #${ticket}؟`)) return;
+    try {
+      await api('/api/close', { ticket });
+      loadGoals();
+      loadBotStatus();
+    } catch (e) {
+      alert(`فشل إغلاق الصفقة: ${e.message}`);
+    }
+  }
+
+  async function closeAllPositions() {
+    if (!confirm('تحذير: هل أنت متأكد من إغلاق جميع الصفقات المفتوحة فوراً؟')) return;
+    try {
+      const res = await api('/api/close', { close_all: true });
+      alert(res.message || 'تم إغلاق الصفقات');
+      loadGoals();
+      loadBotStatus();
+    } catch (e) {
+      alert(`فشل الإغلاق: ${e.message}`);
+    }
+  }
+
+  async function updateGoals() {
+    const target = parseFloat(document.getElementById('inTargetProfit').value) || 20;
+    const maxLoss = parseFloat(document.getElementById('inMaxLoss').value) || 10;
+    const daily = parseFloat(document.getElementById('inDailyTarget').value) || 5;
+
+    try {
+      await api('/api/update-goal', {
+        target_profit_usd: target,
+        max_loss_usd: maxLoss,
+        daily_target_usd: daily
+      });
+      alert('تم حفظ إعدادات الأهداف بنجاح!');
+      loadGoals();
+    } catch (e) {
+      alert(`فشل الحفظ: ${e.message}`);
+    }
+  }
+
+  // Auto-init and refresh intervals
+  window.addEventListener('DOMContentLoaded', () => {
+    loadAnalysis();
+    loadBotStatus();
+    loadGoals();
+
+    // Periodic refresh every 4 seconds
+    setInterval(() => {
+      const isTraderActive = document.getElementById('tab-trader').style.display !== 'none';
+      const isBotActive = document.getElementById('tab-bot').style.display !== 'none';
+
+      if (isTraderActive) {
+        loadAnalysis();
+      } else if (isBotActive) {
+        loadBotStatus();
+      } else {
+        loadGoals();
+      }
+    }, 4000);
+  });
+</script>
+</body>
+</html>

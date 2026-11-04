@@ -1,0 +1,44 @@
+{
+  "start_time": "2026-11-04T22:50:08.995883",
+  "start_balance": 100.0,
+  "last_update": "2026-11-04T22:50:12.438830",
+  "trade_count": 0,
+  "error_count": 0,
+  "active_symbols": [
+    "BTCUSDm",
+    "ETHUSDm",
+    "XAUUSDm"
+  ],
+  "dry_run": true,
+  "goal": {
+    "target_profit_usd": 20.0,
+    "target_profit_pct": 20.0,
+    "max_loss_usd": 10.0,
+    "max_loss_pct": 10.0,
+    "daily_target_usd": 5.0
+  },
+  "trading": {
+    "symbols": [
+      "EURUSDm",
+      "GBPUSDm",
+      "BTCUSDm",
+      "ETHUSDm",
+      "XAUUSDm"
+    ],
+    "timeframes": [
+      "M15",
+      "H1",
+      "H4"
+    ],
+    "primary_timeframe": "H1",
+    "max_positions": 3,
+    "risk_per_trade_pct": 1.0,
+    "lot_size": 0.01,
+    "max_lot_size": 0.1,
+    "magic_number": 20241104,
+    "min_confidence": 65.0,
+    "scan_interval": 10,
+    "slippage": 10,
+    "deviation": 20
+  }
+}
