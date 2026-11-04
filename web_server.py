@@ -136,7 +136,22 @@ class TradingBotHandler(BaseHTTPRequestHandler):
                 ds.GOAL_STATE["max_loss_usd"] = float(body["max_loss_usd"])
             if "daily_target_usd" in body:
                 ds.GOAL_STATE["daily_target_usd"] = float(body["daily_target_usd"])
+            if "daily_max_loss_usd" in body:
+                ds.GOAL_STATE["daily_max_loss_usd"] = float(body["daily_max_loss_usd"])
+            # Reset start_balance so progress recalculates from NOW
+            if body.get("reset_balance"):
+                import MetaTrader5 as mt5_mod
+                acc = mt5_mod.account_info()
+                if acc:
+                    ds.GOAL_STATE["start_balance"] = float(acc.balance)
+                    ds.GOAL_STATE["daily_start"]   = float(acc.balance)
+                    ds.add_bot_log(f"🔄 تم إعادة ضبط نقطة البداية على الرصيد الحالي: ${float(acc.balance):.2f}", "INFO")
             ds.save_goal_state(ds.GOAL_STATE)
+            ds.add_bot_log(
+                f"🎯 تم تحديث الهدف: ربح=${ds.GOAL_STATE.get('target_profit_usd')} | "
+                f"خسارة قصوى=${ds.GOAL_STATE.get('max_loss_usd')} | "
+                f"يومي=${ds.GOAL_STATE.get('daily_target_usd')}", "SUCCESS"
+            )
             self._send_json(200, {"success": True, "goal": ds.GOAL_STATE})
 
         elif path == "/api/bot/start":

@@ -32,6 +32,9 @@ import strategy as strat_engine
 import risk_manager as rm
 from config import GOAL, TRADING
 
+# Cache for symbol info (contract_size etc.)
+_SYM_INFO_CACHE: Dict[str, Any] = {}
+
 logger = logging.getLogger("dashboard_service")
 
 ROOT = Path(__file__).parent
@@ -172,17 +175,20 @@ def analyze_symbol(symbol: str, timeframe: str = "H1") -> Dict[str, Any]:
         tick = mt5.symbol_info_tick(symbol)
         if info:
             sym_info = {
-                "name": info.name,
-                "digits": info.digits,
-                "point": info.point,
-                "pip": info.point * 10 if info.digits in (4, 5) else info.point,
-                "spread": info.spread,
-                "volume_min": info.volume_min,
-                "volume_max": info.volume_max,
-                "volume_step": info.volume_step,
-                "bid": tick.bid if tick else 0,
-                "ask": tick.ask if tick else 0,
+                "name":          info.name,
+                "digits":        info.digits,
+                "point":         info.point,
+                "pip":           info.point * 10 if info.digits in (4, 5) else info.point,
+                "spread":        info.spread,
+                "volume_min":    info.volume_min,
+                "volume_max":    info.volume_max,
+                "volume_step":   info.volume_step,
+                "contract_size": getattr(info, "trade_contract_size", 100000),
+                "bid":           tick.bid if tick else 0,
+                "ask":           tick.ask if tick else 0,
             }
+            # Cache for use in bot scan
+            _SYM_INFO_CACHE[symbol] = sym_info
 
     strategy_signal = strat_engine.get_signal(symbol, df, analysis["indicators"], sym_info)
 
@@ -273,6 +279,7 @@ def get_goal_and_account_status() -> Dict[str, Any]:
     target_usd = float(GOAL_STATE.get("target_profit_usd", 20.0))
     max_loss_usd = float(GOAL_STATE.get("max_loss_usd", 10.0))
     daily_target_usd = float(GOAL_STATE.get("daily_target_usd", 5.0))
+    daily_max_loss_usd = float(GOAL_STATE.get("daily_max_loss_usd", GOAL.get("daily_max_loss_usd", 3.0)))
 
     progress = max(0.0, min(100.0, (total_profit / target_usd * 100))) if target_usd > 0 else 0.0
     daily_progress = max(0.0, min(100.0, (daily_profit / daily_target_usd * 100))) if daily_target_usd > 0 else 0.0
@@ -282,6 +289,8 @@ def get_goal_and_account_status() -> Dict[str, Any]:
         status = "GOAL_ACHIEVED"
     elif total_profit <= -max_loss_usd:
         status = "STOP_LOSS"
+    elif daily_profit <= -daily_max_loss_usd:
+        status = "DAILY_LIMIT"
 
     positions = []
     mt5_positions = mt5.positions_get()
@@ -541,62 +550,175 @@ def run_bot_scan_cycle():
 
     # 3. Check open positions capacity
     open_positions = status_data.get("open_positions", [])
-    max_pos = int(BOT_STATE.get("max_positions", 2))
+    max_pos = int(BOT_STATE.get("max_positions", 3))
     if len(open_positions) >= max_pos:
         BOT_STATE["last_action"] = f"الحد الأقصى للصفقات مكتمل ({len(open_positions)}/{max_pos}) - جاري المراقبة"
         return
 
     open_symbols = {p["symbol"] for p in open_positions}
-    min_conf = float(BOT_STATE.get("min_confidence", 60.0))
-    lot_size = float(BOT_STATE.get("lot_size", 0.01))
+    min_conf = float(BOT_STATE.get("min_confidence", 70.0))
 
-    # 4. Scan Symbols
+    # Get current account balance for lot calculation
+    acc_data = status_data.get("account", {})
+    current_balance = float(acc_data.get("balance", 100.0))
+
+    # 4. Scan Symbols — Multi-timeframe + Consensus Logic
     scan_summaries = []
     for sym in BOT_STATE.get("symbols", ["XAUUSDm", "BTCUSDm", "ETHUSDm"]):
         if sym in open_symbols:
-            scan_summaries.append(f"{sym}: صفقته مفتوحة")
+            scan_summaries.append(f"{sym}: مفتوحة")
             continue
 
+        # Stop adding if max reached mid-loop
+        if len(open_symbols) >= max_pos:
+            break
+
         try:
-            analysis = analyze_symbol(sym, "H1")
-            if not analysis.get("success"):
+            # === Multi-Timeframe Analysis: H1 (trend) + M15 (entry timing) ===
+            analysis_h1  = analyze_symbol(sym, "H1")
+            analysis_m15 = analyze_symbol(sym, "M15")
+
+            if not analysis_h1.get("success"):
+                scan_summaries.append(f"{sym}: لا بيانات")
                 continue
 
-            strat = analysis.get("strategy", {})
-            action = strat.get("action", "WAIT")
-            conf = float(strat.get("confidence", 0))
-            best_strat_name = strat.get("strategy", "—")
+            strat_h1  = analysis_h1.get("strategy", {})
+            action_h1 = strat_h1.get("action", "WAIT")
+            conf_h1   = float(strat_h1.get("confidence", 0))
 
-            scan_summaries.append(f"{sym}: {action} ({conf:.0f}%)")
+            # M15 alignment check
+            m15_ok = False
+            conf_m15 = 0.0
+            if analysis_m15 and analysis_m15.get("success"):
+                strat_m15  = analysis_m15.get("strategy", {})
+                action_m15 = strat_m15.get("action", "WAIT")
+                conf_m15   = float(strat_m15.get("confidence", 0))
+                # M15 must agree with H1 OR be WAIT (don't contradict)
+                if action_m15 == action_h1:
+                    m15_ok = True
+                elif action_m15 == "WAIT":
+                    m15_ok = True   # M15 neutral — OK to follow H1
+                else:
+                    m15_ok = False  # M15 contradicts H1 → skip
 
-            # Check entry criteria
-            if action in ("BUY", "SELL") and conf >= min_conf:
-                entry = strat.get("entry", analysis.get("current_price"))
-                sl = strat.get("sl", 0.0)
-                tp = strat.get("tp", 0.0)
+            # Combined confidence (H1 weighted more)
+            combined_conf = conf_h1 * 0.7 + conf_m15 * 0.3 if conf_m15 > 0 else conf_h1
+
+            # Votes from H1 strategies
+            votes = int(strat_h1.get("votes", 0))
+            best_strat_name = strat_h1.get("strategy", "—")
+
+            scan_summaries.append(
+                f"{sym}: {action_h1} H1={conf_h1:.0f}% M15={'✓' if m15_ok else '✗'} votes={votes}"
+            )
+
+            add_bot_log(
+                f"🔍 فحص {sym}: {action_h1} | H1={conf_h1:.0f}% | M15={'متوافق' if m15_ok else 'معارض'} | "
+                f"إجماع={votes}/4 | مجتمع={combined_conf:.0f}%",
+                "INFO"
+            )
+
+            # === ENTRY DECISION ===
+            # Requires: action != WAIT + combined_conf >= min_conf + M15 not contradicting
+            if action_h1 in ("BUY", "SELL") and combined_conf >= min_conf and m15_ok:
+
+                # Get symbol info for proper SL/TP and lot calculation
+                sym_info = _SYM_INFO_CACHE.get(sym, {})
+                if not sym_info and mt5 is not None:
+                    info = mt5.symbol_info(sym)
+                    if info:
+                        sym_info = {
+                            "digits":        info.digits,
+                            "point":         info.point,
+                            "volume_min":    info.volume_min,
+                            "volume_max":    info.volume_max,
+                            "volume_step":   info.volume_step,
+                            "contract_size": getattr(info, "trade_contract_size", 100000),
+                        }
+                        _SYM_INFO_CACHE[sym] = sym_info
+
+                current_price = float(analysis_h1.get("current_price", 0))
+                atr_val = float(
+                    analysis_h1.get("indicators", {}).get("atr", {}).get("value") or
+                    current_price * 0.001
+                )
+
+                # === Calculate PROPER SL/TP using ATR ===
+                sl_price, tp_price, sl_distance = rm.calculate_sl_tp(
+                    symbol_info=sym_info,
+                    order_type=action_h1,
+                    entry_price=current_price,
+                    atr_value=atr_val,
+                    atr_multiplier_sl=1.5,
+                    rr_ratio=2.0,   # 1:2 risk/reward
+                )
+
+                # Use strategy SL/TP if they look valid, else use calculated
+                strat_sl = float(strat_h1.get("sl", 0))
+                strat_tp = float(strat_h1.get("tp", 0))
+
+                digits = int(sym_info.get("digits", 2))
+                if action_h1 == "BUY":
+                    final_sl = strat_sl if (0 < strat_sl < current_price) else sl_price
+                    final_tp = strat_tp if (strat_tp > current_price) else tp_price
+                    final_sl_dist = abs(current_price - final_sl)
+                else:
+                    final_sl = strat_sl if (strat_sl > current_price > 0) else sl_price
+                    final_tp = strat_tp if (0 < strat_tp < current_price) else tp_price
+                    final_sl_dist = abs(final_sl - current_price)
+
+                # === Calculate PROPER Lot Size based on balance ===
+                risk_pct = float(TRADING.get("risk_per_trade_pct", 1.0))
+                lot = rm.calculate_lot_size(
+                    symbol_info=sym_info,
+                    account_balance=current_balance,
+                    sl_distance=final_sl_dist,
+                    risk_pct=risk_pct,
+                )
+
+                # Safety: ensure valid lot
+                min_lot = float(sym_info.get("volume_min", 0.01))
+                max_lot = float(TRADING.get("max_lot", 0.10))
+                lot = max(min_lot, min(max_lot, lot))
 
                 add_bot_log(
-                    f"🎯 رصد إشارة دخول قوية: {action} على {sym} بثقة {conf:.0f}% (استراتيجية: {best_strat_name})",
+                    f"🎯 إشارة دخول: {action_h1} {sym} | ثقة={combined_conf:.0f}% | "
+                    f"إجماع={votes}/4 | SL={final_sl} | TP={final_tp} | "
+                    f"لوت={lot} (خطر {risk_pct}% من ${current_balance:.2f})",
                     "TRADE"
                 )
 
                 if BOT_STATE.get("auto_trade"):
                     res = execute_order(
                         symbol=sym,
-                        action=action,
-                        lot=lot_size,
-                        sl=sl,
-                        tp=tp,
-                        comment=f"{best_strat_name[:7]}_{conf:.0f}%"
+                        action=action_h1,
+                        lot=lot,
+                        sl=round(final_sl, digits),
+                        tp=round(final_tp, digits),
+                        comment=f"{best_strat_name[:6]}_{votes}v_{combined_conf:.0f}"
                     )
                     if res.get("success"):
                         open_symbols.add(sym)
-                        if len(open_symbols) >= max_pos:
-                            break
-        except Exception as e:
-            logger.error(f"Error scanning {sym}: {e}")
+                        # Update balance estimate after trade
+                        # (actual balance will be re-fetched next cycle)
+            else:
+                # Log reason for skip
+                if action_h1 != "WAIT" and combined_conf < min_conf:
+                    add_bot_log(
+                        f"⏭️ تخطي {sym}: {action_h1} ثقة={combined_conf:.0f}% < حد الدخول={min_conf:.0f}%",
+                        "INFO"
+                    )
+                elif action_h1 != "WAIT" and not m15_ok:
+                    add_bot_log(
+                        f"⏭️ تخطي {sym}: M15 معارض للإشارة على H1 — انتظار توافق الأطر",
+                        "INFO"
+                    )
 
-    summary_text = " | ".join(scan_summaries) if scan_summaries else "تم فحص الرموز"
+        except Exception as e:
+            logger.error(f"Error scanning {sym}: {e}", exc_info=True)
+            add_bot_log(f"⚠️ خطأ في فحص {sym}: {e}", "ERROR")
+
+    summary_text = " | ".join(scan_summaries) if scan_summaries else "تم فحص جميع الرموز"
     BOT_STATE["last_action"] = f"آخر فحص ({now_str}): {summary_text}"
 
 

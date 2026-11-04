@@ -478,14 +478,23 @@
         </div>
       </div>
 
-      <!-- Progress -->
+      <!-- Progress Bars -->
       <div style="margin: 14px 0 8px;">
+        <!-- Main Goal Progress -->
         <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px; font-weight:700;">
-          <span>نسبة إنجاز الهدف المالي:</span>
+          <span>🎯 نسبة إنجاز الهدف الإجمالي:</span>
           <span id="gProgressPct" style="color:var(--blue);">0%</span>
         </div>
-        <div class="progress">
-          <i id="gProgressBar"></i>
+        <div class="progress" style="height:14px; border-radius:8px; margin-bottom:10px;">
+          <i id="gProgressBar" style="border-radius:8px; transition: width .6s ease, background .6s;"></i>
+        </div>
+        <!-- Daily Goal Progress -->
+        <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:11px; font-weight:600; opacity:.8;">
+          <span>📅 الهدف اليومي:</span>
+          <span id="gDailyProgressPct" style="color:#f1c40f;">0%</span>
+        </div>
+        <div class="progress" style="height:8px; border-radius:5px; background:var(--panel2);">
+          <i id="gDailyProgressBar" style="border-radius:5px; background:#f1c40f; transition: width .6s ease;"></i>
         </div>
       </div>
 
@@ -1079,30 +1088,48 @@
   }
 
   function renderGoalUI(data) {
-    const acc = data.account || {};
-    const goal = data.goal || {};
+    const acc  = data.account || {};
+    const goal = data.goal   || {};
 
-    document.getElementById('gBalance').textContent = `$${(acc.balance || 0).toFixed(2)}`;
-    document.getElementById('gEquity').textContent = `$${(acc.equity || 0).toFixed(2)}`;
+    // ---- Account metrics ----
+    document.getElementById('gBalance').textContent    = `$${(acc.balance  || 0).toFixed(2)}`;
+    document.getElementById('gEquity').textContent     = `$${(acc.equity   || 0).toFixed(2)}`;
     document.getElementById('gFreeMargin').textContent = `متاح: $${(acc.margin_free || 0).toFixed(2)}`;
     document.getElementById('gStartBalance').textContent = `بداية: $${(goal.start_balance || 0).toFixed(2)}`;
 
-    const totProf = goal.total_profit || 0;
+    // ---- Profit ----
+    const totProf   = goal.total_profit || 0;
     const totProfEl = document.getElementById('gTotalProfit');
     totProfEl.textContent = `$${totProf >= 0 ? '+' : ''}${totProf.toFixed(2)}`;
     totProfEl.style.color = totProf >= 0 ? 'var(--green)' : 'var(--red)';
-    document.getElementById('gTotalProfitPct').textContent = `عائد: ${goal.total_profit_pct || 0}%`;
+    document.getElementById('gTotalProfitPct').textContent = `عائد: ${(goal.total_profit_pct || 0).toFixed(2)}%`;
 
-    document.getElementById('gTarget').textContent = `$${(goal.target_profit_usd || 20).toFixed(2)}`;
+    // ---- Goal values (from user-set targets) ----
+    const targetUsd = goal.target_profit_usd || 20;
+    const maxLossUsd = goal.max_loss_usd || 10;
+    document.getElementById('gTarget').textContent    = `$${targetUsd.toFixed(2)}`;
     document.getElementById('gRemaining').textContent = `المتبقي: $${(goal.remaining_usd || 0).toFixed(2)}`;
-    document.getElementById('gMaxLoss').textContent = `$${(goal.max_loss_usd || 10).toFixed(2)}`;
+    document.getElementById('gMaxLoss').textContent   = `$${maxLossUsd.toFixed(2)}`;
 
-    // Progress
+    // ---- Progress Bar (uses ACTUAL user-set target) ----
     const prog = Math.min(100, Math.max(0, goal.progress || 0));
     document.getElementById('gProgressPct').textContent = `${prog.toFixed(1)}%`;
-    document.getElementById('gProgressBar').style.width = `${prog}%`;
+    const bar = document.getElementById('gProgressBar');
+    bar.style.width = `${prog}%`;
+    // Color: red < 25%, orange < 50%, yellow < 75%, green >= 75%
+    if (prog < 25)       bar.style.background = 'var(--red)';
+    else if (prog < 50)  bar.style.background = '#e67e22';
+    else if (prog < 75)  bar.style.background = '#f1c40f';
+    else                 bar.style.background = 'var(--green)';
 
-    // Status Badge
+    // ---- Daily Progress Bar ----
+    const dProg = Math.min(100, Math.max(0, goal.daily_progress || 0));
+    const dPct  = document.getElementById('gDailyProgressPct');
+    const dBar  = document.getElementById('gDailyProgressBar');
+    if (dPct) dPct.textContent = `${dProg.toFixed(1)}%`;
+    if (dBar) { dBar.style.width = `${dProg}%`; dBar.style.background = dProg >= 100 ? 'var(--green)' : '#f1c40f'; }
+
+    // ---- Status Badge ----
     const badgeEl = document.getElementById('goalBadge');
     if (goal.status === 'GOAL_ACHIEVED') {
       badgeEl.textContent = '🎉 تم تحقيق الهدف بنجاح!';
@@ -1110,24 +1137,32 @@
     } else if (goal.status === 'STOP_LOSS') {
       badgeEl.textContent = '🛑 تم تفعيل وقف الخسارة';
       badgeEl.className = 'badge bad';
+    } else if (goal.status === 'DAILY_LIMIT') {
+      badgeEl.textContent = '⚠️ تم الوصول لحد الخسارة اليومية';
+      badgeEl.className = 'badge bad';
     } else {
       badgeEl.textContent = 'الحالة: نشط ومراقب';
       badgeEl.className = 'badge good';
     }
 
-    // Input fields
-    document.getElementById('inTargetProfit').value = goal.target_profit_usd || 20;
-    document.getElementById('inMaxLoss').value = goal.max_loss_usd || 10;
-    document.getElementById('inDailyTarget').value = goal.daily_target_usd || 5;
+    // ---- Input fields — only update if user is NOT editing them ----
+    const inTarget = document.getElementById('inTargetProfit');
+    const inLoss   = document.getElementById('inMaxLoss');
+    const inDaily  = document.getElementById('inDailyTarget');
+    if (document.activeElement !== inTarget) inTarget.value = goal.target_profit_usd || 20;
+    if (document.activeElement !== inLoss)   inLoss.value   = goal.max_loss_usd || 10;
+    if (document.activeElement !== inDaily)  inDaily.value  = goal.daily_target_usd || 5;
 
-    // Open positions
+    // ---- Open positions ----
     renderOpenPositions(data.open_positions || []);
 
-    // Closed trades
+    // ---- Closed trades ----
     renderClosedTrades(data.closed_trades || []);
 
-    // Nav bar info
+    // ---- Nav bar ----
     document.getElementById('navAccInfo').textContent = `#${acc.login || ''} | $${(acc.balance || 0).toFixed(2)}`;
+    document.getElementById('navTime').textContent    = new Date().toLocaleTimeString('ar-EG');
+  }
   }
 
   function renderOpenPositions(positions) {
@@ -1204,21 +1239,43 @@
   }
 
   async function updateGoals() {
-    const target = parseFloat(document.getElementById('inTargetProfit').value) || 20;
-    const maxLoss = parseFloat(document.getElementById('inMaxLoss').value) || 10;
-    const daily = parseFloat(document.getElementById('inDailyTarget').value) || 5;
+    const target  = parseFloat(document.getElementById('inTargetProfit').value);
+    const maxLoss = parseFloat(document.getElementById('inMaxLoss').value);
+    const daily   = parseFloat(document.getElementById('inDailyTarget').value);
+
+    if (isNaN(target) || target <= 0) { alert('هدف الربح يجب أن يكون أكبر من صفر'); return; }
+    if (isNaN(maxLoss) || maxLoss <= 0) { alert('أقصى خسارة يجب أن تكون أكبر من صفر'); return; }
 
     try {
-      await api('/api/update-goal', {
+      const res = await api('/api/update-goal', {
         target_profit_usd: target,
-        max_loss_usd: maxLoss,
-        daily_target_usd: daily
+        max_loss_usd:      maxLoss,
+        daily_target_usd:  daily || 5,
+        reset_balance:     true   // إعادة ضبط نقطة البداية على الرصيد الحالي
       });
-      alert('تم حفظ إعدادات الأهداف بنجاح!');
-      loadGoals();
+      if (res.success) {
+        showToast(`✅ تم حفظ الهدف: ربح=$${target} | خسارة قصوى=$${maxLoss} | يومي=$${daily || 5}`);
+        await loadGoals();
+      } else {
+        alert('فشل الحفظ: ' + (res.error || 'خطأ غير معروف'));
+      }
     } catch (e) {
       alert(`فشل الحفظ: ${e.message}`);
     }
+  }
+
+  function showToast(msg, duration = 3000) {
+    let t = document.getElementById('toastMsg');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toastMsg';
+      t.style.cssText = 'position:fixed;bottom:28px;right:28px;background:var(--green);color:#fff;padding:12px 22px;border-radius:10px;font-size:14px;font-weight:700;z-index:9999;box-shadow:0 4px 24px #0008;transition:opacity .4s;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, duration);
   }
 
   // Auto-init and refresh intervals
